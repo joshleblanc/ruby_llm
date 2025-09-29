@@ -35,6 +35,22 @@ module RubyLLM
           %i[venice_api_key]
         end
       end
+
+      def parse_error(response)
+        return if response.body.empty?
+  
+        body = try_parse_json(response.body)
+        case body
+        when Hash
+          body.dig('error')
+        when Array
+          body.map do |part|
+            part.dig('error')
+          end.join('. ')
+        else
+          body
+        end
+      end
     end
   end
 end

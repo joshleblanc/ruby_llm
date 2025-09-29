@@ -98,6 +98,7 @@ module RubyLLM
       return if response.body.empty?
 
       body = try_parse_json(response.body)
+      p body
       case body
       when Hash
         body.dig('error', 'message')
