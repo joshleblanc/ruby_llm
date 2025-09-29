@@ -35,21 +35,21 @@ module RubyLLM
 
         def parse_image_response(response, model:)
           data = response.body
-          image_data = data['data'].first
+          image_data = data['images'].first
 
           Image.new(
             url: image_data['url'],
             mime_type: determine_mime_type(image_data),
             revised_prompt: image_data['revised_prompt'],
             model_id: model,
-            data: image_data['b64_json']
+            data: image_data
           )
         end
 
         def determine_mime_type(image_data)
-          return 'image/png' unless image_data['b64_json']
+          return 'image/png' unless image_data
 
-          decoded = Base64.decode64(image_data['b64_json'][0..100])
+          decoded = Base64.decode64(image_data[0..100])
           case decoded
           when /\A\x89PNG/n then 'image/png'
           when /\AJFIF|Exif/n then 'image/jpeg'
