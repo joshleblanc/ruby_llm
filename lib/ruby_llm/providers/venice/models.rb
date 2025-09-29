@@ -5,6 +5,25 @@ module RubyLLM
     class Venice
       # Models methods of the Venice API integration
       module Models
+        MODEL_TYPES = %w[text image embedding].freeze
+
+        def list_models
+          all_models = []
+
+          MODEL_TYPES.each do |model_type|
+            response = @connection.get(models_url) do |req|
+              req.params = { type: model_type }
+            end
+
+            models = parse_list_models_response(response, slug, capabilities)
+            all_models.concat(models)
+          rescue StandardError => e
+            RubyLLM.logger.warn "Failed to fetch #{model_type} models from Venice: #{e.message}"
+          end
+
+          all_models
+        end
+
         module_function
 
         def models_url

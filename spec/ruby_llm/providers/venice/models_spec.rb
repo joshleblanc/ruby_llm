@@ -12,6 +12,111 @@ RSpec.describe RubyLLM::Providers::Venice::Models do
     end
   end
 
+  describe '#list_models' do
+    let(:provider) do
+      allow(RubyLLM.config).to receive(:venice_api_key).and_return('test-key')
+      RubyLLM::Providers::Venice.new(RubyLLM.config)
+    end
+
+    let(:text_response) do
+      double('Response', body: {
+               'data' => [{
+                 'id' => 'llama-3.3-70b',
+                 'type' => 'text',
+                 'created' => 1_704_067_200,
+                 'model_spec' => {
+                   'name' => 'Llama 3.3 70B',
+                   'availableContextTokens' => 128_000,
+                   'capabilities' => { 'supportsFunctionCalling' => true },
+                   'pricing' => {
+                     'input' => { 'usd' => 0.0000005 },
+                     'output' => { 'usd' => 0.0000015 }
+                   }
+                 }
+               }]
+             })
+    end
+
+    let(:image_response) do
+      double('Response', body: {
+               'data' => [{
+                 'id' => 'dall-e-3',
+                 'type' => 'image',
+                 'created' => 1_704_067_200,
+                 'model_spec' => {
+                   'name' => 'DALL-E 3',
+                   'availableContextTokens' => nil,
+                   'capabilities' => {},
+                   'pricing' => {
+                     'input' => { 'usd' => 0.0 },
+                     'output' => { 'usd' => 0.0 }
+                   }
+                 }
+               }]
+             })
+    end
+
+    let(:embedding_response) do
+      double('Response', body: {
+               'data' => [{
+                 'id' => 'text-embedding-ada-002',
+                 'type' => 'embedding',
+                 'created' => 1_704_067_200,
+                 'model_spec' => {
+                   'name' => 'Text Embedding Ada 002',
+                   'availableContextTokens' => 8191,
+                   'capabilities' => {},
+                   'pricing' => {
+                     'input' => { 'usd' => 0.0000001 },
+                     'output' => { 'usd' => 0.0 }
+                   }
+                 }
+               }]
+             })
+    end
+
+    it 'fetches models for all types' do
+      connection = provider.instance_variable_get(:@connection)
+
+      expect(connection).to receive(:get).with('models').exactly(3).times do |&block|
+        req = double('Request')
+        params = {}
+        allow(req).to receive(:params=) { |value| params.merge!(value) }
+        block.call(req)
+
+        case params[:type]
+        when 'text'
+          text_response
+        when 'image'
+          image_response
+        when 'embedding'
+          embedding_response
+        end
+      end
+
+      models = provider.list_models
+
+      expect(models.length).to eq(3)
+      expect(models.map(&:id)).to contain_exactly('llama-3.3-70b', 'dall-e-3', 'text-embedding-ada-002')
+    end
+
+    it 'handles errors gracefully and continues fetching other types' do
+      expect(provider.instance_variable_get(:@connection)).to receive(:get).with('models').and_return(text_response)
+      expect(provider.instance_variable_get(:@connection)).to receive(:get).with('models').and_raise(StandardError,
+                                                                                                      'API error')
+      expect(provider.instance_variable_get(:@connection)).to receive(:get).with('models').and_return(
+        embedding_response
+      )
+
+      expect(RubyLLM.logger).to receive(:warn).with(/Failed to fetch image models/)
+
+      models = provider.list_models
+
+      expect(models.length).to eq(2)
+      expect(models.map(&:id)).to contain_exactly('llama-3.3-70b', 'text-embedding-ada-002')
+    end
+  end
+
   describe '#parse_list_models_response' do
     context 'with text model' do
       let(:response) do
