@@ -21,6 +21,7 @@ loader.inflector.inflect(
   'openrouter' => 'OpenRouter',
   'gpustack' => 'GPUStack',
   'mistral' => 'Mistral',
+  'venice' => 'Venice',
   'vertexai' => 'VertexAI',
   'pdf' => 'PDF',
   'UI' => 'UI'
@@ -92,6 +93,7 @@ RubyLLM::Provider.register :ollama, RubyLLM::Providers::Ollama
 RubyLLM::Provider.register :openai, RubyLLM::Providers::OpenAI
 RubyLLM::Provider.register :openrouter, RubyLLM::Providers::OpenRouter
 RubyLLM::Provider.register :perplexity, RubyLLM::Providers::Perplexity
+RubyLLM::Provider.register :venice, RubyLLM::Providers::Venice
 RubyLLM::Provider.register :vertexai, RubyLLM::Providers::VertexAI
 
 if defined?(Rails::Railtie)
