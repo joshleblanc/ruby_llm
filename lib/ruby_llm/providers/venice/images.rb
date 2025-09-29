@@ -7,7 +7,7 @@ module RubyLLM
         module_function
 
         def images_url
-          'image/generations'
+          'image/generate'
         end
 
         def render_image_payload(prompt, model:, size:, **options)
