@@ -14,7 +14,6 @@ module RubyLLM
           payload = {
             model: model,
             prompt: prompt,
-            n: 1
           }
 
           if size
