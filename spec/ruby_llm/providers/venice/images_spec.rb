@@ -4,8 +4,8 @@ require 'spec_helper'
 
 RSpec.describe RubyLLM::Providers::Venice::Images do
   describe '#images_url' do
-    it 'returns image/generations endpoint' do
-      expect(described_class.images_url).to eq('image/generations')
+    it 'returns image/generate endpoint' do
+      expect(described_class.images_url).to eq('image/generate')
     end
   end
 
@@ -15,7 +15,6 @@ RSpec.describe RubyLLM::Providers::Venice::Images do
 
       expect(payload[:model]).to eq('dall-e-3')
       expect(payload[:prompt]).to eq('a cat')
-      expect(payload[:n]).to eq(1)
     end
 
     it 'parses size parameter into width and height' do
@@ -88,92 +87,90 @@ RSpec.describe RubyLLM::Providers::Venice::Images do
   end
 
   describe '#parse_image_response' do
-    it 'parses response with URL' do
+    it 'parses response from Venice API with base64 PNG' do
+      png_base64 = Base64.encode64("\x89PNG\r\n\x1a\n" + ('x' * 100))
+
       response = double(
         'Response',
         body: {
-          'data' => [{
-            'url' => 'https://example.com/image.png',
-            'revised_prompt' => 'A beautiful cat',
-            'b64_json' => nil
-          }]
+          'images' => [png_base64]
         }
       )
 
-      image = described_class.parse_image_response(response, model: 'dall-e-3')
+      image = described_class.parse_image_response(response, model: 'flux-1.1-pro')
 
       expect(image).to be_a(RubyLLM::Image)
-      expect(image.url).to eq('https://example.com/image.png')
-      expect(image.revised_prompt).to eq('A beautiful cat')
-      expect(image.model_id).to eq('dall-e-3')
-      expect(image.data).to be_nil
+      expect(image.data).to eq(png_base64)
+      expect(image.mime_type).to eq('image/png')
+      expect(image.model_id).to eq('flux-1.1-pro')
+      expect(image.url).to be_nil
+      expect(image.revised_prompt).to be_nil
     end
 
-    it 'parses response with base64 data' do
-      base64_data = Base64.encode64('fake_image_data')
+    it 'parses response from Venice API with base64 JPEG' do
+      jpeg_base64 = Base64.encode64('JFIFxxxxx' + ('x' * 100))
+
       response = double(
         'Response',
         body: {
-          'data' => [{
-            'url' => nil,
-            'revised_prompt' => 'A cat',
-            'b64_json' => base64_data
-          }]
+          'images' => [jpeg_base64]
         }
       )
 
-      image = described_class.parse_image_response(response, model: 'dall-e-3')
+      image = described_class.parse_image_response(response, model: 'flux-1.1-pro')
 
-      expect(image.data).to eq(base64_data)
+      expect(image).to be_a(RubyLLM::Image)
+      expect(image.data).to eq(jpeg_base64)
+      expect(image.mime_type).to eq('image/jpeg')
+      expect(image.model_id).to eq('flux-1.1-pro')
     end
   end
 
   describe '#determine_mime_type' do
-    it 'detects PNG format' do
-      image_data = { 'b64_json' => Base64.encode64("\x89PNG\r\n\x1a\n" + ('x' * 100)) }
-      mime_type = described_class.determine_mime_type(image_data)
+    it 'detects PNG format from base64 string' do
+      png_base64 = Base64.encode64("\x89PNG\r\n\x1a\n" + ('x' * 100))
+      mime_type = described_class.determine_mime_type_from_base64(png_base64)
 
       expect(mime_type).to eq('image/png')
     end
 
     it 'detects JPEG format from JFIF marker' do
-      image_data = { 'b64_json' => Base64.encode64('JFIFxxxxx' + ('x' * 100)) }
-      mime_type = described_class.determine_mime_type(image_data)
+      jpeg_base64 = Base64.encode64('JFIFxxxxx' + ('x' * 100))
+      mime_type = described_class.determine_mime_type_from_base64(jpeg_base64)
 
       expect(mime_type).to eq('image/jpeg')
     end
 
     it 'detects JPEG format from Exif marker' do
-      image_data = { 'b64_json' => Base64.encode64('Exifxxxxx' + ('x' * 100)) }
-      mime_type = described_class.determine_mime_type(image_data)
+      jpeg_base64 = Base64.encode64('Exifxxxxx' + ('x' * 100))
+      mime_type = described_class.determine_mime_type_from_base64(jpeg_base64)
 
       expect(mime_type).to eq('image/jpeg')
     end
 
     it 'detects GIF format' do
-      image_data = { 'b64_json' => Base64.encode64('GIF89axxxx' + ('x' * 100)) }
-      mime_type = described_class.determine_mime_type(image_data)
+      gif_base64 = Base64.encode64('GIF89axxxx' + ('x' * 100))
+      mime_type = described_class.determine_mime_type_from_base64(gif_base64)
 
       expect(mime_type).to eq('image/gif')
     end
 
     it 'detects WebP format' do
-      image_data = { 'b64_json' => Base64.encode64('RIFFxxxxWEBP' + ('x' * 100)) }
-      mime_type = described_class.determine_mime_type(image_data)
+      webp_base64 = Base64.encode64('RIFFxxxxWEBP' + ('x' * 100))
+      mime_type = described_class.determine_mime_type_from_base64(webp_base64)
 
       expect(mime_type).to eq('image/webp')
     end
 
-    it 'defaults to PNG when b64_json is missing' do
-      image_data = {}
-      mime_type = described_class.determine_mime_type(image_data)
+    it 'defaults to PNG when image_data is nil' do
+      mime_type = described_class.determine_mime_type_from_base64(nil)
 
       expect(mime_type).to eq('image/png')
     end
 
     it 'defaults to PNG for unknown formats' do
-      image_data = { 'b64_json' => Base64.encode64('unknown_format' + ('x' * 100)) }
-      mime_type = described_class.determine_mime_type(image_data)
+      unknown_base64 = Base64.encode64('unknown_format' + ('x' * 100))
+      mime_type = described_class.determine_mime_type_from_base64(unknown_base64)
 
       expect(mime_type).to eq('image/png')
     end

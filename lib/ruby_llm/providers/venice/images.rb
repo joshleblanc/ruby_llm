@@ -34,30 +34,32 @@ module RubyLLM
         end
 
         def parse_image_response(response, model:)
-          data = response.body
-          image_data = data['images'].first
+          body = response.body
+          # Venice API returns images array where each element is a base64 string
+          b64_data = body['images'].first
+
+          mime_type = determine_mime_type_from_base64(b64_data)
 
           Image.new(
-            url: image_data['url'],
-            mime_type: determine_mime_type(image_data),
-            revised_prompt: image_data['revised_prompt'],
-            model_id: model,
-            data: image_data
+            url: nil,
+            data: b64_data,
+            mime_type: mime_type,
+            revised_prompt: nil,
+            model_id: model
           )
         end
 
-        def determine_mime_type(image_data)
-          return 'image/png' unless image_data
+        def determine_mime_type_from_base64(base64_string)
+          return 'image/png' unless base64_string
 
-          decoded = Base64.decode64(image_data[0..100])
+          decoded = Base64.decode64(base64_string[0..100])
           case decoded
           when /\A\x89PNG/n then 'image/png'
           when /\AJFIF|Exif/n then 'image/jpeg'
           when /\AGIF8/n then 'image/gif'
           when /\ARIFF.*WEBP/nm then 'image/webp'
           else 'image/png'
-          end
-        end
+          end        end
       end
     end
   end
